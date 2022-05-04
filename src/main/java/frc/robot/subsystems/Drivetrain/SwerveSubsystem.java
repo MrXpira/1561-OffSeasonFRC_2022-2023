@@ -7,6 +7,7 @@ package frc.robot.subsystems.Drivetrain;
 
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 
+import com.ctre.phoenix.sensors.Pigeon2;
 import com.kauailabs.navx.frc.AHRS;
 
 import edu.wpi.first.math.geometry.Pose2d;
@@ -35,14 +36,10 @@ public class SwerveSubsystem extends SubsystemBase {
 
     private final SwerveModule backRight;
 
-    private final AHRS gyro;
+    private final Pigeon2 gyro;
     private final SwerveDriveOdometry odometer;
 
-    private EncoderSim leftEncoderSim;
-    private EncoderSim rightEncoderSim;
-    private AnalogGyroSim gyroSim;
-
-    public SwerveSubsystem() {
+    public SwerveSubsystem(int pigeon2ID) {
 
         frontLeft = new SwerveModule(
             DriveConstants.kFrontLeftDriveMotorPort,
@@ -82,7 +79,7 @@ public class SwerveSubsystem extends SubsystemBase {
 
 
         odometer = new SwerveDriveOdometry(DriveConstants.kDriveKinematics, new Rotation2d(0));
-        gyro = new AHRS(SPI.Port.kMXP);
+        gyro = new Pigeon2(pigeon2ID);
 
         
         new Thread(() -> {
@@ -95,11 +92,11 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     public void zeroHeading() {
-        gyro.reset();
+        gyro.setYaw(0);
     }
 
     public double getHeading() {
-        return Math.IEEEremainder(gyro.getAngle(), 360);
+        return gyro.getAbsoluteCompassHeading();
     }
 
     public Rotation2d getRotation2d() {
