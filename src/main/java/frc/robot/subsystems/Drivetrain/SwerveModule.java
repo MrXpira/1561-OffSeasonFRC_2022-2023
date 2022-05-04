@@ -4,14 +4,19 @@
 
 package frc.robot.subsystems.Drivetrain;
 
+import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
 import com.ctre.phoenix.motorcontrol.TalonFXFeedbackDevice;
 import com.ctre.phoenix.motorcontrol.TalonFXSimCollection;
 import com.ctre.phoenix.motorcontrol.can.TalonFX;
+import com.ctre.phoenix.motorcontrol.can.TalonFXConfiguration;
+import com.ctre.phoenix.sensors.CANCoder;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 import edu.wpi.first.wpilibj.AnalogInput;
+import edu.wpi.first.wpilibj.CAN;
+import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.math.controller.PIDController;
@@ -20,81 +25,87 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.Constants.ModuleConstants;
+import frc.robot.Constants.TalonFXConstants;
+
+import com.ctre.phoenix.motorcontrol.TalonFXSimCollection;
 
 public class SwerveModule extends SubsystemBase {
-  private final CANSparkMax driveMotor;
-  private final CANSparkMax turningMotor;
-  private final TalonFX talon; 
-
-  private final RelativeEncoder driveEncoder;
-  private final RelativeEncoder turningEncoder;
-
-  private final PIDController turningPidController; 
-
-  private final AnalogInput absoluteEncoder;
-  private final boolean absoluteEncoderReversed;
-  private final double absoluteEncoderOffsetRad;
-
-
-
-  /** Creates a new SwerveModule. */
-  public SwerveModule(int driveMotorId, int turningMotorId, boolean driveMotorReversed, boolean turningMotorReversed, int absoluteEncoderId, double absoluteEncoderOffset, boolean absoluteEncoderReversed) {
-    talon = new TalonFX(1);
-    talon.getSimCollection();
-    talon.set(TalonFXControlMode.PercentOutput, -.5);
-  
-    this.absoluteEncoderOffsetRad = absoluteEncoderOffset;
-    this.absoluteEncoderReversed = absoluteEncoderReversed;
-    absoluteEncoder = new AnalogInput(absoluteEncoderId);
-
-    driveMotor = new CANSparkMax(driveMotorId ,MotorType.kBrushless);
-    turningMotor = new CANSparkMax(turningMotorId ,MotorType.kBrushless);
-
-    driveMotor.setInverted(driveMotorReversed);
-    turningMotor.setInverted(turningMotorReversed);
+    /*
+     * Motion Magic Should be used for the turning PID with a calculated feed forward gain.
+     * https://docs.ctre-phoenix.com/en/stable/ch16_ClosedLoop.html
+     * 
+     */
     
-    driveEncoder = driveMotor.getEncoder();
-    turningEncoder = turningMotor.getEncoder();
+    private final TalonFX driveMotor;
+    private final TalonFX turningMotor;
 
-    driveEncoder.setPositionConversionFactor(ModuleConstants.kDriveEncoderRot2Meter);
-    driveEncoder.setVelocityConversionFactor(ModuleConstants.kDriveEncoderRPM2MeterPerSec);
-    turningEncoder.setPositionConversionFactor(ModuleConstants.kTurningEncoderRot2Rad);
-    turningEncoder.setVelocityConversionFactor(ModuleConstants.kTurningEncoderRPM2RadPerSec);
-
-    turningPidController = new PIDController(ModuleConstants.kPTurning, 0, 0);
-    turningPidController.enableContinuousInput(-Math.PI, Math.PI);
+    private final CANCoder absoluteEncoder;
+    private final boolean absoluteEncoderReversed;
+    private final double absoluteEncoderOffsetRad;
+    TalonFXConfiguration config;
 
 
+    /** Creates a new SwerveModule. */
+    public SwerveModule(int driveMotorId, int turningMotorId, boolean driveMotorReversed, boolean turningMotorReversed,
+                        int absoluteEncoderId, double absoluteEncoderOffset, boolean absoluteEncoderReversed) {   
+    
+    
+      this.absoluteEncoderOffsetRad = absoluteEncoderOffset;
+      this.absoluteEncoderReversed = absoluteEncoderReversed;
+      absoluteEncoder = new CANCoder(absoluteEncoderId);
+      
+      driveMotor = new TalonFX(driveMotorId, "rio");
+      turningMotor = new TalonFX(turningMotorId, "rio");
 
+      driveMotor.setInverted(driveMotorReversed);
+      turningMotor.setInverted(turningMotorReversed);
 
-    resetEncoders();
-  }
+      /* Set Motion Magic gains in slot0 - see documentation */
+      driveMotor.selectProfileSlot(ModuleConstants.kDriveSlotIdx, ModuleConstants.kPIDLoopIdx);
+      driveMotor.config_kF(ModuleConstants.kDriveSlotIdx, ModuleConstants.kDriveGains.kF, ModuleConstants.kTimeoutMs);
+      driveMotor.config_kP(ModuleConstants.kDriveSlotIdx, ModuleConstants.kDriveGains.kP, ModuleConstants.kTimeoutMs);
+      driveMotor.config_kI(ModuleConstants.kDriveSlotIdx, ModuleConstants.kDriveGains.kI, ModuleConstants.kTimeoutMs);
+      driveMotor.config_kD(ModuleConstants.kDriveSlotIdx, ModuleConstants.kDriveGains.kD, ModuleConstants.kTimeoutMs);
+
+      /* Set Motion Magic gains in slot1 - see documentation */
+      driveMotor.selectProfileSlot(ModuleConstants.kTurnSlotIdx, ModuleConstants.kPIDLoopIdx);
+      driveMotor.config_kF(ModuleConstants.kTurnSlotIdx, ModuleConstants.kTurnGains.kF, ModuleConstants.kTimeoutMs);
+      driveMotor.config_kP(ModuleConstants.kTurnSlotIdx, ModuleConstants.kTurnGains.kP, ModuleConstants.kTimeoutMs);
+      driveMotor.config_kI(ModuleConstants.kTurnSlotIdx, ModuleConstants.kTurnGains.kI, ModuleConstants.kTimeoutMs);
+      driveMotor.config_kD(ModuleConstants.kTurnSlotIdx, ModuleConstants.kTurnGains.kD, ModuleConstants.kTimeoutMs);
+      resetEncoders();
+    }
+
     public double getDrivePosition() {
-        return driveEncoder.getPosition();
+      /* Position in meters */
+        return (driveMotor.getSelectedSensorPosition() / ModuleConstants.kUnitsPerRevolution) * ModuleConstants.kDriveEncoderRot2Meter; // Fix to constants
     }
 
     public double getTurningPosition() {
-        return turningEncoder.getPosition();
+      /* Position in radians */
+        return (turningMotor.getSelectedSensorPosition() / ModuleConstants.kUnitsPerRevolution) * 2 * Math.PI; // FIX to constants
     }
 
     public double getDriveVelocity() {
-        return driveEncoder.getVelocity();
+      /* Velocity in meters per second */
+        return (driveMotor.getSelectedSensorVelocity() / 2080) * 0.1;
     }
 
     public double getTurningVelocity() {
-        return turningEncoder.getVelocity();
+      /* Position in radians per second*/
+        return ((turningMotor.getSelectedSensorVelocity() / 2080) * 0.1) * 2 * Math.PI;
     }
 
     public double getAbsoluteEncoderRad() {
-        double angle = absoluteEncoder.getVoltage() / RobotController.getVoltage5V();
+        double angle = absoluteEncoder.getAbsolutePosition();
         angle *= 2.0 * Math.PI;
         angle -= absoluteEncoderOffsetRad;
         return angle * (absoluteEncoderReversed ? -1.0 : 1.0);
     }
 
     public void resetEncoders() {
-      driveEncoder.setPosition(0);
-      turningEncoder.setPosition(getAbsoluteEncoderRad());
+      driveMotor.setSelectedSensorPosition(0);
+      turningMotor.setSelectedSensorPosition(absoluteEncoder.getAbsolutePosition() / 360);
     }
 
     public SwerveModuleState getState() {
@@ -107,16 +118,21 @@ public class SwerveModule extends SubsystemBase {
         return;
       }
       state = SwerveModuleState.optimize(state, getState().angle);
-      driveMotor.set(state.speedMetersPerSecond / DriveConstants.kPhysicalMaxSpeedMetersPerSecond);
-      turningMotor.set(turningPidController.calculate(getTurningPosition(), state.angle.getRadians()));
-      SmartDashboard.putString("Swerve[" + absoluteEncoder.getChannel() + "] state", state.toString());
-      
+      /**
+       * https://github.com/CrossTheRoadElec/Phoenix-Examples-Languages/blob/master/Java%20Talon%20FX%20(Falcon%20500)/MotionMagic/src/main/java/frc/robot/Robot.java 
+       * 
+       * Set Motion Magic gains in slot0 - see documentation 
+       */
+ 
+      driveMotor.set(ControlMode.MotionMagic, state.speedMetersPerSecond); // No idea if this will work lol
+      turningMotor.set(ControlMode.MotionMagic, state.angle.getRadians()); // Must have continuous motion
+
+
+      SmartDashboard.putString("Swerve[" + absoluteEncoder.getAbsolutePosition() + "] state", state.toString());
     }
 
     public void stop() {
-      driveMotor.set(0);
-      turningMotor.set(0);
+      driveMotor.set(ControlMode.PercentOutput, 0);
+      turningMotor.set(ControlMode.PercentOutput, 0);
     }
-
-    
 }
