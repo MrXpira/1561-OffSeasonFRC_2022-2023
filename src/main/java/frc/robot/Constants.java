@@ -4,6 +4,10 @@
 
 package frc.robot;
 
+import com.ctre.phoenix.motorcontrol.NeutralMode;
+import com.ctre.phoenix.motorcontrol.TalonFXInvertType;
+
+import Util.Gains;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.util.Units;
@@ -17,15 +21,48 @@ import edu.wpi.first.math.util.Units;
  * constants are needed, to reduce verbosity.
  */
 public final class Constants {
+        public static final class TalonFXConstants {
+            
+        public final TalonFXInvertType kInvertType = TalonFXInvertType.CounterClockwise; // <<< What direction you want "forward/up" to be.
+    }
     public static final class ModuleConstants {
+        public static final int kUnitsPerRevolution = 2048; /* this is constant for Talon FX */
         public static final double kWheelDiameterMeters = Units.inchesToMeters(4);
-        public static final double kDriveMotorGearRatio = 1 / 5.8462;
-        public static final double kTurningMotorGearRatio = 1 / 18.0;
-        public static final double kDriveEncoderRot2Meter = kDriveMotorGearRatio * Math.PI * kWheelDiameterMeters;
-        public static final double kTurningEncoderRot2Rad = kTurningMotorGearRatio * 2 * Math.PI;
+        public static final double kDriveMotorGearRatio = 1; // FIXME
+        public static final double kTurningMotorGearRatio = 1; // FIXME
+        public static final double kDriveEncoderRot2Meter = kDriveMotorGearRatio * kWheelDiameterMeters;
+        public static final double kTurningEncoderRot2Rad = kTurningMotorGearRatio * 2 * 2048; 
         public static final double kDriveEncoderRPM2MeterPerSec = kDriveEncoderRot2Meter / 60;
         public static final double kTurningEncoderRPM2RadPerSec = kTurningEncoderRot2Rad / 60;
         public static final double kPTurning = 0.5;
+
+        /**
+         * Which PID slot to pull gains from. Starting 2018, you can choose from
+         * 0,1,2 or 3. Only the first two (0,1) are visible in web-based
+         * configuration.
+         */
+        public static final int kDriveSlotIdx = 0;
+        
+        public static final int kTurnSlotIdx = 1;
+
+        /**
+         * Talon FX supports multiple (cascaded) PID loops. For
+         * now we just want the primary one.
+         */
+        public static final int kPIDLoopIdx = 0;
+
+        /**
+         * set to zero to skip waiting for confirmation, set to nonzero to wait and
+         * report to DS if action fails.
+         */
+        public static final int kTimeoutMs = 30;
+
+        /**
+         * Gains used in Motion Magic, to be adjusted accordingly
+         * Gains(kp, ki, kd, kf, izone, peak output);
+         */
+        public static final Gains kDriveGains = new Gains(0.2, 0.0, 0.0, 0.2, 0, 1.0);
+        public static final Gains kTurnGains = new Gains(0.2, 0.0, 0.0, 0.2, 0, 1.0);
     }
     public static final class DriveConstants {
 
@@ -48,6 +85,8 @@ public final class Constants {
         public static final int kBackLeftTurningMotorPort = 1;
         public static final int kFrontRightTurningMotorPort = 5;
         public static final int kBackRightTurningMotorPort = 3;
+
+        public static final int kPigeon2Port = 9;
 
         public static final boolean kFrontLeftTurningEncoderReversed = true;
         public static final boolean kBackLeftTurningEncoderReversed = true;
